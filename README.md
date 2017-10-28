@@ -26,27 +26,36 @@ Create a new user.
 
 `user` is an object with these properties:
 
-- `pubkey`: buffer of the user's pubkey
-- `privkey`: buffer of the user's privkey
-- `privkey_encrypted`: buffer of the user's encrypted privkey, using their same passphrase
-- `privkey_salt`: salt used to encrypt their privkey
+- `signKeys`: keys for signing. Object contains properties:
+  - `pubkey`: buffer of public signing key
+  - `privkey`: buffer of secret signing key. This is encrypted using the user's passphrase
+- `encryptKeys`: keys for encrypting messages. Object contains properties:
+  - `pubkey`: buffer of public encryption key
+  - `privkey`: buffer of private encryption key. This is encrypted using the user's passphrase
 - `cert`: a user certification with expiration, algorithm name, creation datetime, and identityInfo json
 - `certSig`: a signature of a hash of the `cert` using the user's privkey (see `verifyUser`)
+- `salt`: random salt used to generate a secret key from the user's passphrase. Needed to decrypt privkeys. Not secret.
 
-## verifyUser(user, callback)
+## verifyUser(user)
 
-Verify the self-signature for the given user using the user's public key. This verifies that the user's identifying metadata was created by the user and not modified by anyone else.
+Verify the self-signature for the given user. This verifies that the user's identifying metadata was created by the user and not modified by anyone else.
 
-The `user` object only needs to have properties for `cert`, `certSig`, and `pubkey` -- it does not need any privkey properties.
+The `user` object only needs to have properties for `cert`, `certSig`, and `signKeys`.
+
+A return value of `false` means the user's cert fails validation
+
+```
+const result = verifyUser(user)
+```
 
 ## extendExpiration(user, ms, callback)
 
 Extend the expiration date for the `user` certificate by `ms` milliseconds.
 
-The `user` object must have the `privkey` buffer property.
+The `user` object must have properties for `signKeys`, `cert`, and `certSig`.
 
 ## modifyIdentity(user, identityInfo, callback)
 
-Modify the identity info json for a user. `identityInfo` should be an object that can be auto-converted to JSON. 
+Modify the identity info json for a user. `identityInfo` should be an object that can be auto-converted to JSON. The cert will get re-signed.
 
-The `user` object must have the `privkey` buffer property.
+The `user` object must have properties for `signKeys`, `cert`, and `certSig`.
