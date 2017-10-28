@@ -36,26 +36,26 @@ Create a new user.
 - `certSig`: a signature of a hash of the `cert` using the user's privkey (see `verifyUser`)
 - `salt`: random salt used to generate a secret key from the user's passphrase. Needed to decrypt privkeys. Not secret.
 
-## verifyUser(user)
+## checkSig(user)
 
-Verify the self-signature for the given user. This verifies that the user's identifying metadata was created by the user and not modified by anyone else.
+Verify the self-signature for the given user. This verifies that the user's identification data (stuff in their cert) was created by the user and not modified by anyone else.
 
 The `user` object only needs to have properties for `cert`, `certSig`, and `signKeys`.
 
 A return value of `false` means the user's cert fails validation
 
 ```
-const result = verifyUser(user)
+const result = checkSig(user)
 ```
 
 ## extendExpiration(user, ms, callback)
 
 Extend the expiration date for the `user` certificate by `ms` milliseconds.
 
-The `user` object must have properties for `signKeys`, `cert`, and `certSig`.
+The `user` object must have properties for `signKeys`, `cert`.
 
 ## modifyIdentity(user, identityInfo, callback)
 
 Modify the identity info json for a user. `identityInfo` should be an object that can be auto-converted to JSON. The cert will get re-signed.
 
-The `user` object must have properties for `signKeys`, `cert`, and `certSig`.
+The `user` object must have properties for `signKeys`, `cert`.
