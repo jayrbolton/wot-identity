@@ -20,7 +20,7 @@ Create a new user.
 
 `passphrase` can be any string
 
-`identityInfo` should be an object that can be auto-converted to JSON with `JSON.stringify`. It can contain anything like name, aliases, website, email, picture, dat addresses, etc.
+`identityInfo` should be an object that can be auto-converted to JSON with `JSON.stringify`. It can contain anything like name, aliases, website, email, dat addresses, etc.
 
 `callback` receives two arguments: `err` and `user`.
 
@@ -32,25 +32,25 @@ Create a new user.
 - `encryptKeys`: keys for encrypting messages. Object contains properties:
   - `pubkey`: buffer of public encryption key
   - `privkey`: buffer of private encryption key. This is encrypted using the user's passphrase
-- `cert`: a user certification with expiration, algorithm name, creation datetime, and identityInfo json
-- `certSig`: a signature of a hash of the `cert` using the user's privkey (see `verifyUser`)
-- `salt`: random salt used to generate a secret key from the user's passphrase. Needed to decrypt privkeys. Not secret.
+- `cert`: a buffer of the user certification with self signature, expiration, algorithm name, creation datetime, pubkeys, and identity info
+- `salt`: random salt used to generate a secret key from the user's passphrase. Not secret
 
-## checkSig(user)
+## openCert(user)
 
-Verify the self-signature for the given user. This verifies that the user's identification data (stuff in their cert) was created by the user and not modified by anyone else.
-
-The `user` object only needs to have properties for `cert`, `certSig`, and `signKeys`.
-
-A return value of `false` means the user's cert fails validation
+Open and validate the user's certification using their signing public key. Will return an object of data for their cert. If the cert is invalid, will throw an error.
 
 ```
-const result = checkSig(user)
+const cert = openCert(user)
+t.strictEqual(cert.id.name, userName)
+t.strictEqual(cert.encryptPub.length, 64)
+t.strictEqual(cert.signPub.length, 64)
+t.strictEqual(cert.algo, 'Ed25519')
+t.assert(cert.expiration > Date.now())
 ```
 
-## extendExpiration(user, ms, callback)
+## extendExpiration(user, ms)
 
-Extend the expiration date for the `user` certificate by `ms` milliseconds.
+Extend the expiration date for the user's certificate by `ms` milliseconds. The cert will get updated and resigned.
 
 The `user` object must have properties for `signKeys`, `cert`.
 

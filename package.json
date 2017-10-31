@@ -4,7 +4,7 @@
   "description": "Web of trust identity functions. Generate a key pair and identity certificate for a user.",
   "main": "index.js",
   "scripts": {
-    "test": "dependency-check package.json && standard --fix && tape test/ | tap-spec"
+    "test": "dependency-check package.json && standard --fix && node test/index.js | tap-spec"
   },
   "repository": {
     "type": "git",
