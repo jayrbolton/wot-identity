@@ -62,12 +62,12 @@ ident.openCert = function openCert (user) {
   return obj
 }
 
-ident.extendExpiration = function extendExpiration (user, pass, ms, callback) {
+ident.setExpiration = function setExpiration (user, pass, ts, callback) {
   debug('extending expiration for a user\'s cert')
-  assert.strictEqual(typeof ms, 'number', 'ms must be a number greater than 0')
+  assert.strictEqual(typeof ts, 'number', 'timestamp must be a number')
   getPrivkey(user, pass, function (err, privkey) {
     if (err) return callback(err)
-    resetCert(user, privkey, 'expiration', (exp) => exp + ms)
+    resetCert(user, privkey, 'expiration', ts)
     callback(null, user)
   })
   // return resetCert(user, 'expiration', (exp) => exp + ms)
@@ -77,25 +77,50 @@ ident.modifyIdentity = function modifyIdentity (user, pass, info, callback) {
   debug('changing the identity information for a user')
   getPrivkey(user, pass, function (err, privkey) {
     if (err) return callback(err)
-    resetCert(user, privkey, 'id', () => info)
+    resetCert(user, privkey, 'id', info)
     callback(null, user)
+  })
+}
+
+ident.changePass = function changePass (user, oldPass, newPass, callback) {
+  debug('changing user password')
+  assert(newPass.length >= 7, 'passphrase must have length at least 7')
+  getPrivkey(user, oldPass, function (err, signPrivkey, encryptPrivkey) {
+    if (err) return callback(err)
+    crypto.hashPass(newPass, null, function (err, pwhash) {
+      if (err) return callback(err)
+      const signPrivEncrypted = crypto.encrypt(pwhash.secret, signPrivkey)
+      const encryptPrivEncrypted = crypto.encrypt(pwhash.secret, encryptPrivkey)
+      user.signKeys.privkey = signPrivEncrypted.cipher
+      user.signKeys.nonce = signPrivEncrypted.nonce
+      user.encryptKeys.privkey = encryptPrivEncrypted.cipher
+      user.encryptKeys.nonce = encryptPrivEncrypted.nonce
+      user.salt = pwhash.salt
+      callback(null, user)
+    })
   })
 }
 
 function getPrivkey (user, pass, callback) {
   crypto.hashPass(pass, user.salt, function (err, pwhash) {
     if (err) return callback(err)
-    const privkey = crypto.decrypt(user.signKeys.privkey, user.signKeys.nonce, pwhash.secret)
-    debug('got privkey')
-    callback(null, privkey)
+    const sk = user.signKeys
+    const ek = user.encryptKeys
+    crypto.decrypt(sk.privkey, sk.nonce, pwhash.secret, function (err, signPrivkey) {
+      if (err) return callback(err)
+      crypto.decrypt(ek.privkey, ek.nonce, pwhash.secret, function (err, encryptPrivkey) {
+        if (err) return callback(err)
+        callback(null, signPrivkey, encryptPrivkey)
+      })
+    })
   })
 }
 
 // Change some property in a user's cert using a setter function which takes the old property as a param
 // resign the newcert and modify the user's cert and certSig props
-function resetCert (user, privkey, prop, setterFn) {
+function resetCert (user, privkey, prop, val) {
   const cert = ident.openCert(user)
-  cert[prop] = setterFn(cert[prop])
+  cert[prop] = val
   user.cert = crypto.sign(JSON.stringify(cert), privkey)
   return user
 }

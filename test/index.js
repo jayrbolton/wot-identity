@@ -14,7 +14,7 @@ test('createUser', t => {
   })
 })
 
-test('createUser, openCert', t => {
+test('openCert', t => {
   ident.createUser('this is my passw3rd', {name: 'doug'}, function (err, user) {
     if (err) throw err
     const cert = ident.openCert(user)
@@ -27,7 +27,7 @@ test('createUser, openCert', t => {
   })
 })
 
-test('craeteUser validates type of pass', t => {
+test('createUser validates type of pass', t => {
   t.throws(() => ident.createUser(123, {}, function () {}))
   t.end()
 })
@@ -37,7 +37,7 @@ test('createUser validates length of pass', t => {
   t.end()
 })
 
-test('createUser, make the cert invalid, openCert fails', t => {
+test('make the cert invalid, openCert fails', t => {
   ident.createUser('this is my passw3rd', {name: 'doug'}, function (err, user) {
     if (err) throw err
     user.cert = Buffer.alloc(64)
@@ -46,11 +46,11 @@ test('createUser, make the cert invalid, openCert fails', t => {
   })
 })
 
-test.only('createUser, make the expiration invalid, openCert fails', t => {
+test('make the expiration invalid, openCert fails', t => {
   const pass = '123!@#456$%6789&*('
   ident.createUser(pass, {name: 'doug'}, function (err, user) {
     if (err) throw err
-    ident.extendExpiration(user, pass, -31556926000, function (err, user) {
+    ident.setExpiration(user, pass, Date.now(), function (err, user) {
       if (err) throw err
       t.throws(() => ident.openCert(user))
       t.end()
@@ -58,12 +58,12 @@ test.only('createUser, make the expiration invalid, openCert fails', t => {
   })
 })
 
-test('createUser, extendExpiration', t => {
+test('setExpiration', t => {
   const pass = '123!@#456$%6789&*('
   ident.createUser(pass, {name: 'pam'}, function (err, user) {
     if (err) throw err
     const expiration = ident.openCert(user).expiration
-    ident.extendExpiration(user, pass, 1000, function (err, user) {
+    ident.setExpiration(user, pass, Number(expiration) + 1000, function (err, user) {
       if (err) throw err
       const newExpiration = ident.openCert(user).expiration
       t.strictEqual(newExpiration, expiration + 1000)
@@ -72,7 +72,7 @@ test('createUser, extendExpiration', t => {
   })
 })
 
-test('createUser, modifyIdentity', t => {
+test('modifyIdentity', t => {
   const pass = '123!@#456$%6789&*('
   ident.createUser(pass, {name: 'ice king'}, function (err, user) {
     if (err) throw err
@@ -83,6 +83,27 @@ test('createUser, modifyIdentity', t => {
       t.strictEqual(newID.name, 'princess bubblegum')
       t.strictEqual(oldID.name, 'ice king')
       t.end()
+    })
+  })
+})
+
+test('changePass', t => {
+  const pass1 = '123!@#456$%6789&*('
+  const pass2 = '9183648374923641937'
+  ident.createUser(pass1, {name: 'ja rule'}, function (err, user) {
+    if (err) throw err
+    ident.changePass(user, pass1, pass2, function (err, user) {
+      if (err) throw err
+      // Try to use the old pass -- we'll get an error and user is unchanged
+      ident.modifyIdentity(user, pass1, {name: 'busta rhymes'}, function (err) {
+        t.assert(err)
+        t.strictEqual(ident.openCert(user).id.name, 'ja rule')
+        ident.modifyIdentity(user, pass2, {name: 'xzibit'}, function (err, user) {
+          if (err) throw err
+          t.strictEqual(ident.openCert(user).id.name, 'xzibit')
+          t.end()
+        })
+      })
     })
   })
 })

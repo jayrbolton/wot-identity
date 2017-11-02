@@ -13,6 +13,7 @@ See also
 - wot-validate
 - wot-keyring
 - wot-send
+- wot-serialize
 
 ## createUser(passphrase, identityInfo, callback)
 
@@ -48,9 +49,9 @@ t.strictEqual(cert.algo, 'Ed25519')
 t.assert(cert.expiration > Date.now())
 ```
 
-## extendExpiration(user, ms)
+## setExpiration(user, ms)
 
-Extend the expiration date for the user's certificate by `ms` milliseconds. The cert will get updated and resigned.
+Set the expiration date for the user's certificate. The cert will get updated and resigned.
 
 The `user` object must have properties for `signKeys`, `cert`.
 
@@ -59,3 +60,7 @@ The `user` object must have properties for `signKeys`, `cert`.
 Modify the identity info json for a user. `identityInfo` should be an object that can be auto-converted to JSON. The cert will get re-signed.
 
 The `user` object must have properties for `signKeys`, `cert`.
+
+## changePass(user, oldPass, newPass, callback)
+
+Change a user's passphrase given their old passphrase. This will re-encrypt the user's private keys using the new passhprase. It does not change any keys or any other info.
