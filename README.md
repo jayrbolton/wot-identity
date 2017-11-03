@@ -1,19 +1,20 @@
 # wot-identity
 
-Public key cryptography with libsodium on node.
+Public key cryptography for user identity with libsodium on node.
 
 This module generates some of the initial user identity stuff, such as the keypair, certification, and self-signature.
 
-- Create public/private keypair
+- Create public/private keypairs (separate pairs for signing and for encryption)
 - Create a self-signed user identity certificate
 - Create an encrypted version of the privkey for storage
 - Modify the certificate (either the identity data or the expiration)
+- Update a user's passhprase
 
 See also
-- wot-validate
-- wot-keyring
-- wot-send
-- wot-serialize
+- [wot-send](https://github.com/jayrbolton/wot-send) -- send messages between users
+- wot-validate -- validate user identity and assign trust
+- wot-keyring -- save a collection of users and their metadata
+- wot-serialize -- save all your stuff to disk in a standard way
 
 ## createUser(passphrase, identityInfo, callback)
 
