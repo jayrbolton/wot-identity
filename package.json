@@ -10,10 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/jayrbolton/wot-identity.git"
   },
-  "keywords": [
-    "weboftrust",
-    "dat"
-  ],
+  "keywords": ["crypto"],
   "author": "jayrbolton@gmail.com",
   "license": "MIT",
   "bugs": {

@@ -11,7 +11,7 @@ This module generates some of the initial user identity stuff, such as the keypa
 - Update a user's passhprase
 
 See also
-- [wot-send](https://github.com/jayrbolton/wot-send) -- send messages between users
+- [wot-message](https://github.com/jayrbolton/wot-message) -- send data between users
 - wot-validate -- validate user identity and assign trust
 - wot-keyring -- save a collection of users and their metadata
 - wot-serialize -- save all your stuff to disk in a standard way
