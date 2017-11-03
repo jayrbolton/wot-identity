@@ -1,7 +1,7 @@
 const debug = require('debug')('wot-identity:core')
 const assert = require('assert')
-const crypto = require('./lib/crypto')
 const sodium = require('sodium-universal')
+const crypto = require('./lib/crypto')
 
 var ident = module.exports = {}
 
@@ -36,11 +36,13 @@ ident.createUser = function createUser (passphrase, ident, callback) {
       signKeys: {
         pubkey: signKeyPair.pubkey,
         privkey: signPrivEncrypted.cipher,
+        privkey_plain: signKeyPair.privkey,
         nonce: signPrivEncrypted.nonce
       },
       encryptKeys: {
         pubkey: encryptKeyPair.pubkey,
         privkey: encryptPrivEncrypted.cipher,
+        privkey_plain: signKeyPair.privkey,
         nonce: encryptPrivEncrypted.nonce
       },
       cert: certSigned,
@@ -62,57 +64,32 @@ ident.openCert = function openCert (user) {
   return obj
 }
 
-ident.setExpiration = function setExpiration (user, pass, ts, callback) {
+ident.setExpiration = function setExpiration (user, pass, ts) {
   debug('extending expiration for a user\'s cert')
   assert.strictEqual(typeof ts, 'number', 'timestamp must be a number')
-  getPrivkey(user, pass, function (err, privkey) {
-    if (err) return callback(err)
-    resetCert(user, privkey, 'expiration', ts)
-    callback(null, user)
-  })
-  // return resetCert(user, 'expiration', (exp) => exp + ms)
+  resetCert(user, user.signKeys.privkey_plain, 'expiration', ts)
+  return user
 }
 
-ident.modifyIdentity = function modifyIdentity (user, pass, info, callback) {
+ident.modifyIdentity = function modifyIdentity (user, pass, info) {
   debug('changing the identity information for a user')
-  getPrivkey(user, pass, function (err, privkey) {
-    if (err) return callback(err)
-    resetCert(user, privkey, 'id', info)
-    callback(null, user)
-  })
+  resetCert(user, user.signKeys.privkey_plain, 'id', info)
+  return user
 }
 
 ident.changePass = function changePass (user, oldPass, newPass, callback) {
   debug('changing user password')
   assert(newPass.length >= 7, 'passphrase must have length at least 7')
-  getPrivkey(user, oldPass, function (err, signPrivkey, encryptPrivkey) {
+  crypto.hashPass(newPass, null, function (err, pwhash) {
     if (err) return callback(err)
-    crypto.hashPass(newPass, null, function (err, pwhash) {
-      if (err) return callback(err)
-      const signPrivEncrypted = crypto.encrypt(pwhash.secret, signPrivkey)
-      const encryptPrivEncrypted = crypto.encrypt(pwhash.secret, encryptPrivkey)
-      user.signKeys.privkey = signPrivEncrypted.cipher
-      user.signKeys.nonce = signPrivEncrypted.nonce
-      user.encryptKeys.privkey = encryptPrivEncrypted.cipher
-      user.encryptKeys.nonce = encryptPrivEncrypted.nonce
-      user.salt = pwhash.salt
-      callback(null, user)
-    })
-  })
-}
-
-function getPrivkey (user, pass, callback) {
-  crypto.hashPass(pass, user.salt, function (err, pwhash) {
-    if (err) return callback(err)
-    const sk = user.signKeys
-    const ek = user.encryptKeys
-    crypto.decrypt(sk.privkey, sk.nonce, pwhash.secret, function (err, signPrivkey) {
-      if (err) return callback(err)
-      crypto.decrypt(ek.privkey, ek.nonce, pwhash.secret, function (err, encryptPrivkey) {
-        if (err) return callback(err)
-        callback(null, signPrivkey, encryptPrivkey)
-      })
-    })
+    const signPrivEncrypted = crypto.encrypt(pwhash.secret, user.signKeys.privkey_plain)
+    const encryptPrivEncrypted = crypto.encrypt(pwhash.secret, user.encryptKeys.privkey_plain)
+    user.signKeys.privkey = signPrivEncrypted.cipher
+    user.signKeys.nonce = signPrivEncrypted.nonce
+    user.encryptKeys.privkey = encryptPrivEncrypted.cipher
+    user.encryptKeys.nonce = encryptPrivEncrypted.nonce
+    user.salt = pwhash.salt
+    callback(null, user)
   })
 }
 
