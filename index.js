@@ -1,49 +1,38 @@
-const debug = require('debug')('wot-identity:core')
 const assert = require('assert')
-const sodium = require('sodium-universal')
-const crypto = require('./lib/crypto')
+const crypto = require('../wot-crypto') // TODO
 
-var ident = module.exports = {}
+const ident = module.exports = {}
 
 // Create keys, certs, and sigs for a new user
-ident.createUser = function createUser (passphrase, ident, callback) {
-  debug('creating a new user identity')
-  assert.strictEqual(typeof passphrase, 'string', 'passhprase should be a string')
-  assert(passphrase.length >= 7, 'passphrase must have length at least 7')
-  assert(typeof ident === 'object' && ident !== null, 'pass in an object of identity data that can be stringified')
+ident.createUser = function createUser (pass, ident, callback) {
+  assert(pass && pass.length && typeof pass === 'string' && pass.length >= 7, 'pass in a string passphrase of length at least 7')
+  assert(ident && typeof ident === 'object', 'pass in an object of identity data')
   assert.strictEqual(typeof callback, 'function', 'pass in a callback')
-
-  debug('creating secret key from passphrase')
-  crypto.hashPass(passphrase, null, function (err, pwhash) {
+  crypto.hashPass(pass, null, function (err, pwhash) {
     if (err) return callback(err)
-    debug('creating sign and encrypt keypairs')
-    const encryptKeyPair = crypto.boxKeyPair(pwhash.secret)
-    const signKeyPair = crypto.signKeyPair(pwhash.secret)
-    debug('generating cert')
+    const boxKeypair = crypto.createBoxKeypair(pwhash.secret)
+    const signKeypair = crypto.createSignKeypair(pwhash.secret)
     const cert = JSON.stringify({
       expiration: Date.now() + 31556926000, // one year in future
-      algo: 'Ed25519',
       id: ident,
-      encryptPub: encryptKeyPair.pubkey.toString('hex'),
-      signPub: signKeyPair.pubkey.toString('hex')
+      boxPub: boxKeypair.pk.toString('hex'),
+      signPub: signKeypair.pk.toString('hex')
     })
-    const certSigned = crypto.sign(cert, signKeyPair.privkey)
+    const certSigned = crypto.sign(cert, signKeypair.sk)
     // Encrypt the signing private key and save the cipher/nonce
-    const signPrivEncrypted = crypto.encrypt(pwhash.secret, signKeyPair.privkey)
+    const signSkEncrypted = crypto.encrypt(pwhash.secret, signKeypair.sk.toString('hex'))
     // Encrypt the encrypting private key and save the cipher/nonce
-    const encryptPrivEncrypted = crypto.encrypt(pwhash.secret, encryptKeyPair.privkey)
+    const boxSkEncrypted = crypto.encrypt(pwhash.secret, boxKeypair.sk.toString('hex'))
     const user = {
       signKeys: {
-        pubkey: signKeyPair.pubkey,
-        privkey: signPrivEncrypted.cipher,
-        privkey_plain: signKeyPair.privkey,
-        nonce: signPrivEncrypted.nonce
+        pk: signKeypair.pk,
+        sk: signSkEncrypted,
+        sk_plain: signKeypair.sk
       },
-      encryptKeys: {
-        pubkey: encryptKeyPair.pubkey,
-        privkey: encryptPrivEncrypted.cipher,
-        privkey_plain: signKeyPair.privkey,
-        nonce: encryptPrivEncrypted.nonce
+      boxKeys: {
+        pk: boxKeypair.pk,
+        sk: boxSkEncrypted,
+        sk_plain: signKeypair.sk
       },
       cert: certSigned,
       salt: pwhash.salt
@@ -53,51 +42,46 @@ ident.createUser = function createUser (passphrase, ident, callback) {
 }
 
 ident.openCert = function openCert (user) {
-  debug('checking and opening a user certification')
-  assert(user.signKeys && user.signKeys.privkey instanceof Buffer, 'user needs a signing key')
+  assert(user.signKeys && user.signKeys.pk instanceof Buffer, 'user needs a signing public key')
   assert(user.cert && user.cert instanceof Buffer, 'user needs a cert')
-  const cert = sodium.malloc(user.cert.length - sodium.crypto_sign_BYTES)
-  const result = sodium.crypto_sign_open(cert, user.cert, user.signKeys.pubkey)
-  if (!result) throw new Error('User certification is invalid')
-  const obj = JSON.parse(cert.toString('utf8'))
-  if (obj.expiration < Date.now()) throw new Error('User certification has expired')
-  return obj
+  const plain = crypto.openSigned(user.cert, user.signKeys.pk)
+  const cert = JSON.parse(plain)
+  if (cert.expiration < Date.now()) throw new Error('User certification has expired')
+  return cert
 }
 
-ident.setExpiration = function setExpiration (user, pass, ts) {
-  debug('extending expiration for a user\'s cert')
+ident.setExpiration = function setExpiration (user, ts) {
   assert.strictEqual(typeof ts, 'number', 'timestamp must be a number')
-  resetCert(user, user.signKeys.privkey_plain, 'expiration', ts)
+  resetCert(user, 'expiration', ts)
   return user
 }
 
-ident.modifyIdentity = function modifyIdentity (user, pass, info) {
-  debug('changing the identity information for a user')
-  resetCert(user, user.signKeys.privkey_plain, 'id', info)
+ident.modifyIdentity = function modifyIdentity (user, info) {
+  resetCert(user, 'id', info)
   return user
-}
-
-ident.changePass = function changePass (user, oldPass, newPass, callback) {
-  debug('changing user password')
-  assert(newPass.length >= 7, 'passphrase must have length at least 7')
-  crypto.hashPass(newPass, null, function (err, pwhash) {
-    if (err) return callback(err)
-    const signPrivEncrypted = crypto.encrypt(pwhash.secret, user.signKeys.privkey_plain)
-    const encryptPrivEncrypted = crypto.encrypt(pwhash.secret, user.encryptKeys.privkey_plain)
-    user.signKeys.privkey = signPrivEncrypted.cipher
-    user.signKeys.nonce = signPrivEncrypted.nonce
-    user.encryptKeys.privkey = encryptPrivEncrypted.cipher
-    user.encryptKeys.nonce = encryptPrivEncrypted.nonce
-    user.salt = pwhash.salt
-    callback(null, user)
-  })
 }
 
 // Change some property in a user's cert using a setter function which takes the old property as a param
 // resign the newcert and modify the user's cert and certSig props
-function resetCert (user, privkey, prop, val) {
+// Used in setExpiration and modifyIdentity
+function resetCert (user, prop, val) {
+  assert(user.signKeys.sk_plain, 'user must have a plain secret signing key (user.signKeys.sk_plain)')
   const cert = ident.openCert(user)
   cert[prop] = val
-  user.cert = crypto.sign(JSON.stringify(cert), privkey)
+  user.cert = crypto.sign(JSON.stringify(cert), user.signKeys.sk_plain)
   return user
+}
+
+// Change the user's password (re-encrypt their secret keys using a new pass hash)
+ident.changePass = function changePass (user, newPass, callback) {
+  assert(user && user.signKeys.sk_plain.length && user.boxKeys.sk_plain, 'pass in a user with all keys')
+  assert(newPass && newPass.length >= 7, 'passphrase must have length at least 7')
+  assert.strictEqual(typeof callback, 'function', 'pass in a callback function')
+  crypto.hashPass(newPass, null, function (err, pwhash) {
+    if (err) return callback(err)
+    user.salt = pwhash.salt
+    user.signKeys.sk = crypto.encrypt(pwhash.secret, user.signKeys.sk_plain.toString('hex'))
+    user.boxKeys.sk = crypto.encrypt(pwhash.secret, user.boxKeys.sk_plain.toString('hex'))
+    callback(null, user)
+  })
 }
