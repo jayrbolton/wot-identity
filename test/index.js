@@ -7,10 +7,10 @@ test('creates a user with various properties present', t => {
   ident.createUser('xyz xyz xyz', {name: 'partario'}, function (err, user) {
     if (err) throw err
     t.assert(user.signKeys.pk instanceof Buffer, 'creates public signing key')
-    t.assert(typeof user.signKeys.sk === 'string', 'creates secret encrypted signing key')
+    t.assert(typeof user.signKeys.sk_encrypted === 'string', 'creates secret encrypted signing key')
     t.assert(user.signKeys.sk_plain instanceof Buffer, 'creates secret plain signing key')
     t.assert(user.boxKeys.pk instanceof Buffer, 'creates public box key')
-    t.assert(typeof user.boxKeys.sk === 'string', 'creates secret encrypted box key')
+    t.assert(typeof user.boxKeys.sk_encrypted === 'string', 'creates secret encrypted box key')
     t.assert(user.boxKeys.sk_plain instanceof Buffer, 'creates secret plain box key')
     t.assert(user.cert instanceof Buffer, 'creates user cert')
     t.assert(user.salt instanceof Buffer, 'creates user pwhash salt')
@@ -108,12 +108,12 @@ test('changePass', t => {
         if (err) throw err
         crypto.hashPass(pass2, newSalt, function (err, pwhash2) {
           if (err) throw err
-          const boxSk = crypto.decrypt(pwhash2.secret, user.boxKeys.sk, 'successfully decrypts secret box key using new pass hash')
-          const signSk = crypto.decrypt(pwhash2.secret, user.signKeys.sk, 'successfully decrypts secret sign key using new pass hash')
+          const boxSk = crypto.decrypt(pwhash2.secret, user.boxKeys.sk_encrypted, 'successfully decrypts secret box key using new pass hash')
+          const signSk = crypto.decrypt(pwhash2.secret, user.signKeys.sk_encrypted, 'successfully decrypts secret sign key using new pass hash')
           t.strictEqual(signSk.toString('hex'), user.signKeys.sk_plain.toString('hex'))
           t.strictEqual(boxSk.toString('hex'), user.boxKeys.sk_plain.toString('hex'))
-          t.throws(() => crypto.decrypt(pwhash1.secret, user.signKeys.sk), 'throws when trying to decrypt secret sign key with the old pass')
-          t.throws(() => crypto.decrypt(pwhash1.secret, user.boxKeys.sk), 'throws when trying to decrypt secret box key with old pass')
+          t.throws(() => crypto.decrypt(pwhash1.secret, user.signKeys.sk_encrypted), 'throws when trying to decrypt secret sign key with the old pass')
+          t.throws(() => crypto.decrypt(pwhash1.secret, user.boxKeys.sk_encrypted), 'throws when trying to decrypt secret box key with old pass')
           t.end()
         })
       })

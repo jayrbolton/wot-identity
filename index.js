@@ -26,13 +26,13 @@ ident.createUser = function createUser (pass, ident, callback) {
     const user = {
       signKeys: {
         pk: signKeypair.pk,
-        sk: signSkEncrypted,
+        sk_encrypted: signSkEncrypted,
         sk_plain: signKeypair.sk
       },
       boxKeys: {
         pk: boxKeypair.pk,
-        sk: boxSkEncrypted,
-        sk_plain: signKeypair.sk
+        sk_encrypted: boxSkEncrypted,
+        sk_plain: boxKeypair.sk
       },
       cert: certSigned,
       salt: pwhash.salt
@@ -80,8 +80,8 @@ ident.changePass = function changePass (user, newPass, callback) {
   crypto.hashPass(newPass, null, function (err, pwhash) {
     if (err) return callback(err)
     user.salt = pwhash.salt
-    user.signKeys.sk = crypto.encrypt(pwhash.secret, user.signKeys.sk_plain.toString('hex'))
-    user.boxKeys.sk = crypto.encrypt(pwhash.secret, user.boxKeys.sk_plain.toString('hex'))
+    user.signKeys.sk_encrypted = crypto.encrypt(pwhash.secret, user.signKeys.sk_plain.toString('hex'))
+    user.boxKeys.sk_encrypted = crypto.encrypt(pwhash.secret, user.boxKeys.sk_plain.toString('hex'))
     callback(null, user)
   })
 }
