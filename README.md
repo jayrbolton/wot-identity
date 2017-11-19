@@ -1,26 +1,19 @@
 # wot-identity
 
-Public key cryptography for user identity with libsodium on node.
+Public key cryptography for user identity with libsodium; part of [node-wot](https://github.com/jayrbolton/node-wot).
 
-This module generates some of the initial user identity stuff, such as the keypair, certification, and self-signature.
+This library uses different, easier-to-use terms for key management, found in the paper [Why King George III Can Encrypt](http://randomwalker.info/teaching/spring-2014-privacy-technologies/king-george-iii-encrypt.pdf).
 
-- Create public/private keypairs (separate pairs for signing and for encryption)
-- Create a self-signed user identity certificate
-- Create an encrypted version of the privkey for storage
-- Modify the certificate (either the identity data or the expiration)
-- Update a user's passhprase
+This module generates some of the initial user identity stuff, such as the keypair, certification, and self-signature. It also has two simple functions for locking and stamping a message. Save a user to disk with `wot-serialize`.
 
-See also
-- [wot-message](https://github.com/jayrbolton/wot-message) -- send data between users
-- wot-validate -- validate user identity and assign trust
-- wot-keyring -- save a collection of users and their metadata
-- wot-serialize -- save all your stuff to disk in a standard way
+- Generate all the necessary data for a user
+- Create a self-stamped user identity certificate
+- Create locked versions of the stamp and the key for storage
+- Utilities for updating the user, sending locked messages, or stamping messages
 
 ## createUser(passphrase, identityInfo, callback)
 
-Create a new user.
-
-`passphrase` can be any string
+Create a new user. `passphrase` can be any string of at least length 7.
 
 `identityInfo` should be an object that can be auto-converted to JSON with `JSON.stringify`. It can contain anything like name, aliases, website, email, dat addresses, etc.
 
@@ -28,26 +21,23 @@ Create a new user.
 
 `user` is an object with these properties:
 
-- `signKeys`: keys for signing. Object contains properties:
-  - `pubkey`: buffer of public signing key
-  - `privkey`: buffer of secret signing key. This is encrypted using the user's passphrase
-- `encryptKeys`: keys for encrypting messages. Object contains properties:
-  - `pubkey`: buffer of public encryption key
-  - `privkey`: buffer of private encryption key. This is encrypted using the user's passphrase
-- `cert`: a buffer of the user certification with self signature, expiration, algorithm name, creation datetime, pubkeys, and identity info
-- `salt`: random salt used to generate a secret key from the user's passphrase. Not secret
+- `stamp` - private buffer for stamping messages
+- `stamp_locked` - locked stamp for storage (see `wot-serialize`)
+- `imprint` - public imprint for others to verify a stamped message
+- `key` - private key for unlocking locked messages
+- `key_locked` - locked key for storage (see `wot-serialize`)
+- `lock` - public lock to allow anyone to lock a message
+- `cert`: a buffer of the stamped user certification
 
 ## openCert(user)
 
-Open and validate the user's certification using their signing public key. Will return an object of data for their cert. If the cert is invalid, will throw an error.
+Open and validate the user's certification using their imprint. Will return an object of data for their cert. If the cert is invalid, either because the imprint doesn't match or because the cert is expired, then an error will be thrown.
 
 ```
-const cert = openCert(user)
-t.strictEqual(cert.id.name, userName)
-t.strictEqual(cert.encryptPub.length, 64)
-t.strictEqual(cert.signPub.length, 64)
-t.strictEqual(cert.algo, 'Ed25519')
-t.assert(cert.expiration > Date.now())
+const cert = ident.openCert(user)
+t.strictEqual(cert.id.name, 'doug', 'cert contains nested id info')
+t.strictEqual(cert.lock.length, 64, 'cert contains the lock')
+t.strictEqual(cert.imprint.length, 64, 'cert contains the imprint')
 ```
 
 ## setExpiration(user, ms)
@@ -58,10 +48,26 @@ The `user` object must have properties for `signKeys`, `cert`.
 
 ## modifyIdentity(user, identityInfo, callback)
 
-Modify the identity info json for a user. `identityInfo` should be an object that can be auto-converted to JSON. The cert will get re-signed.
+Modify the identity info for a user. `identityInfo` should be an object that can be converted to JSON. A new stamped cert will get generated.
 
-The `user` object must have properties for `signKeys`, `cert`.
+```js
+const id = ident.openCert(user).id
+id.age = 33
+ident.modifyIdentity(user, id)
+const newID = ident.openCert(user).id
+t.strictEqual(newID.name, 'jim halpert')
+t.strictEqual(newID.age, 33)
+```
 
 ## changePass(user, oldPass, newPass, callback)
 
 Change a user's passphrase given their old passphrase. This will re-encrypt the user's private keys using the new passhprase. It does not change any keys or any other info.
+
+Both `user.stamp_locked` and `user.key_locked` will get re-locked using your new pass phrase.
+
+```js
+ident.changePass(user, newPass, function (err, user) {
+  if (err) throw err
+  // User now has a new stamp_locked and a new key_locked
+})
+```
