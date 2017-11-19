@@ -11,11 +11,11 @@ This module generates some of the initial user identity stuff, such as the keypa
 - Create locked versions of the stamp and the key for storage
 - Utilities for updating the user, sending locked messages, or stamping messages
 
-## createUser(passphrase, identityInfo, callback)
+## createUser(passphrase, profile, callback)
 
 Create a new user. `passphrase` can be any string of at least length 7.
 
-`identityInfo` should be an object that can be auto-converted to JSON with `JSON.stringify`. It can contain anything like name, aliases, website, email, dat addresses, etc.
+`profile` should be an object that can be auto-converted to JSON with `JSON.stringify`. It can contain anything like name, aliases, website, email, dat addresses, etc.
 
 `callback` receives two arguments: `err` and `user`.
 
@@ -40,20 +40,28 @@ t.strictEqual(cert.lock.length, 64, 'cert contains the lock')
 t.strictEqual(cert.imprint.length, 64, 'cert contains the imprint')
 ```
 
+Each cert has these properties;
+
+- `id` - a large, random, probably unique for the user
+- `expiration` - date at which this certification should be considered invalid
+- `lock` - the user's public lock
+- `imprint` - the user's public imprint
+- `profile` - the profile data for the user (can be any json object)
+
 ## setExpiration(user, ms)
 
 Set the expiration date for the user's certificate. The cert will get updated and resigned.
 
 The `user` object must have properties for `signKeys`, `cert`.
 
-## modifyIdentity(user, identityInfo, callback)
+## modifyProfile(user, profile, callback)
 
-Modify the identity info for a user. `identityInfo` should be an object that can be converted to JSON. A new stamped cert will get generated.
+Modify the profile info for a user. `profile` should be an object that can be converted to JSON. A new stamped cert will get generated.
 
 ```js
 const id = ident.openCert(user).id
 id.age = 33
-ident.modifyIdentity(user, id)
+ident.modifyProfile(user, id)
 const newID = ident.openCert(user).id
 t.strictEqual(newID.name, 'jim halpert')
 t.strictEqual(newID.age, 33)

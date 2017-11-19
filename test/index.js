@@ -21,7 +21,8 @@ test('can open a valid cert as an obj', t => {
   ident.createUser('this is my passw3rd', {name: 'doug'}, function (err, user) {
     if (err) throw err
     const cert = ident.openCert(user)
-    t.strictEqual(cert.id.name, 'doug', 'cert contains nested id info')
+    t.strictEqual(cert.id.length, 64, 'cert generates an id')
+    t.strictEqual(cert.profile.name, 'doug', 'cert contains nested id info')
     t.strictEqual(cert.lock.length, 64, 'cert contains the lock')
     t.strictEqual(cert.imprint.length, 64, 'cert contains the imprint')
     t.assert(cert.expiration > Date.now(), 'cert expiration is in future')
@@ -84,12 +85,12 @@ test('modifyIdentity', t => {
   const pass = '123!@#456$%6789&*('
   ident.createUser(pass, {name: 'jim halpert'}, function (err, user) {
     if (err) throw err
-    const id = ident.openCert(user).id
-    id.age = 33
-    ident.modifyIdentity(user, id)
-    const newID = ident.openCert(user).id
-    t.strictEqual(newID.name, 'jim halpert')
-    t.strictEqual(newID.age, 33)
+    const profile = ident.openCert(user).profile
+    profile.age = 33
+    ident.modifyProfile(user, profile)
+    const newProfile = ident.openCert(user).profile
+    t.strictEqual(newProfile.name, 'jim halpert')
+    t.strictEqual(newProfile.age, 33)
     t.end()
   })
 })

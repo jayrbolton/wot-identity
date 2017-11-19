@@ -4,9 +4,9 @@ const crypto = require('../wot-crypto') // TODO
 const ident = module.exports = {}
 
 // Create keys, certs, and sigs for a new user
-ident.createUser = function createUser (pass, ident, callback) {
+ident.createUser = function createUser (pass, profile, callback) {
   assert(pass && pass.length && typeof pass === 'string' && pass.length >= 7, 'pass in a string passphrase of length at least 7')
-  assert(ident && typeof ident === 'object', 'pass in an object of identity data')
+  assert(profile && typeof profile === 'object', 'pass in an object of profile data')
   assert.strictEqual(typeof callback, 'function', 'pass in a callback')
   crypto.hashPass(pass, null, function (err, pwhash) {
     if (err) return callback(err)
@@ -14,7 +14,8 @@ ident.createUser = function createUser (pass, ident, callback) {
     const signKeypair = crypto.createSignKeypair(pwhash.secret)
     const cert = JSON.stringify({
       expiration: Date.now() + 31556926000, // one year in future
-      id: ident,
+      profile: profile,
+      id: crypto.id(32),
       lock: boxKeypair.pk.toString('hex'),
       imprint: signKeypair.pk.toString('hex')
     })
@@ -52,9 +53,9 @@ ident.setExpiration = function setExpiration (user, ts) {
   return user
 }
 
-ident.modifyIdentity = function modifyIdentity (user, info) {
-  assert(info && typeof info === 'object', 'pass in an info object')
-  resetCert(user, 'id', info)
+ident.modifyProfile = function modifyProfile (user, profile) {
+  assert(profile && typeof profile === 'object', 'pass in a profile object')
+  resetCert(user, 'profile', profile)
   return user
 }
 
