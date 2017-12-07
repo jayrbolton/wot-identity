@@ -3,21 +3,22 @@ const test = require('tape')
 const ident = require('../')
 const fill = require('buffer-fill')
 
-test('creates a user with various properties present', t => {
+test('.createUser creates a user with various properties present', t => {
   ident.createUser('xyz xyz xyz', {name: 'partario'}, function (err, user) {
     if (err) throw err
-    t.assert(user.imprint instanceof Buffer, 'creates public signing key')
-    t.assert(typeof user.stamp_locked === 'string', 'creates secret encrypted signing key')
-    t.assert(user.stamp instanceof Buffer, 'creates secret plain signing key')
-    t.assert(user.key instanceof Buffer, 'creates public box key')
-    t.assert(typeof user.key_locked === 'string', 'creates secret encrypted box key')
-    t.assert(user.cert instanceof Buffer, 'creates user cert')
-    t.assert(user._salt instanceof Buffer, 'creates user pwhash salt')
+    t.strictEqual(user.id.length, 64, 'creates public signing key')
+    t.strictEqual(user.imprint.length, 64, 'creates public signing key')
+    t.strictEqual(user.stamp_locked.length, 337, 'creates secret encrypted signing key')
+    t.strictEqual(user.stamp.length, 128, 'creates secret plain signing key')
+    t.strictEqual(user.key.length, 64, 'creates public box key')
+    t.strictEqual(user.key_locked.length, 209, 'creates secret encrypted box key')
+    t.strictEqual(user.cert.length, 690, 'creates user cert')
+    t.strictEqual(user._salt.length, 32, 'creates user pwhash salt')
     t.end()
   })
 })
 
-test('can open a valid cert as an obj', t => {
+test('.openCert can open a valid cert into an obj', t => {
   ident.createUser('this is my passw3rd', {name: 'doug'}, function (err, user) {
     if (err) throw err
     const cert = ident.openCert(user)
@@ -50,7 +51,7 @@ test('with an invalid cert, openCert throws', t => {
 })
 
 test('with an invalid sign pub key, openCert throws', t => {
-  const pass = '123!@#456$%6789&*('
+  const pass = crypto.id(8)
   ident.createUser(pass, {name: 'finn'}, function (err, user) {
     if (err) throw err
     user.imprint = fill(Buffer.alloc(32), 'xyz')
@@ -60,7 +61,7 @@ test('with an invalid sign pub key, openCert throws', t => {
 })
 
 test('setExpiration', t => {
-  const pass = '123!@#456$%6789&*('
+  const pass = crypto.id(8)
   ident.createUser(pass, {name: 'pam beasley'}, function (err, user) {
     if (err) throw err
     const expiration = ident.openCert(user).expiration
@@ -72,7 +73,7 @@ test('setExpiration', t => {
 })
 
 test('make the expiration invalid, openCert fails', t => {
-  const pass = '123!@#456$%6789&*('
+  const pass = crypto.id(8)
   ident.createUser(pass, {name: 'doug'}, function (err, user) {
     if (err) throw err
     ident.setExpiration(user, Date.now() - 1000)
@@ -82,7 +83,7 @@ test('make the expiration invalid, openCert fails', t => {
 })
 
 test('modifyIdentity', t => {
-  const pass = '123!@#456$%6789&*('
+  const pass = crypto.id(8)
   ident.createUser(pass, {name: 'jim halpert'}, function (err, user) {
     if (err) throw err
     const profile = ident.openCert(user).profile
@@ -96,8 +97,8 @@ test('modifyIdentity', t => {
 })
 
 test('changePass', t => {
-  const pass1 = '123!@#456$%6789&*('
-  const pass2 = '9183648374923641937'
+  const pass1 = crypto.id(8)
+  const pass2 = crypto.id(8)
   ident.createUser(pass1, {name: 'ja rule'}, function (err, user) {
     if (err) throw err
     const oldSalt = user._salt
@@ -117,6 +118,21 @@ test('changePass', t => {
           t.end()
         })
       })
+    })
+  })
+})
+
+test('.stampUser and .verifyStampedUser: one user can stamp another users cert', t => {
+  ident.createUser('xyz xyz xyz', {name: 'A'}, function (err, stamper) {
+    if (err) throw err
+    ident.createUser('xyz xyz xyz', {name: 'B'}, function (err, stampee) {
+      if (err) throw err
+      const stampeeCert = ident.openCert(stampee)
+      t.deepEqual(stamper.stamped_users, {})
+      ident.stampUser(stamper, stampee)
+      t.assert(stamper.stamped_users[stampeeCert.id])
+      ident.verifyStampedUser(stamper, stampee)
+      t.end()
     })
   })
 })
