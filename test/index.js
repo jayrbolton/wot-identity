@@ -7,12 +7,12 @@ test('.createUser creates a user with various properties present', t => {
   ident.createUser('xyz xyz xyz', {name: 'partario'}, function (err, user) {
     if (err) throw err
     t.strictEqual(user.id.length, 64, 'creates public signing key')
-    t.strictEqual(user.imprint.length, 64, 'creates public signing key')
-    t.strictEqual(user.stamp_locked.length, 337, 'creates secret encrypted signing key')
-    t.strictEqual(user.stamp.length, 128, 'creates secret plain signing key')
+    t.strictEqual(user.thumbprint.length, 64, 'creates public signing key')
+    t.strictEqual(user.thumb_locked.length, 337, 'creates secret encrypted signing key')
+    t.strictEqual(user.thumb.length, 128, 'creates secret plain signing key')
     t.strictEqual(user.key.length, 64, 'creates public box key')
     t.strictEqual(user.key_locked.length, 209, 'creates secret encrypted box key')
-    t.strictEqual(user.cert.length, 690, 'creates user cert')
+    t.ok(user.cert.length, 'creates user cert')
     t.strictEqual(user._salt.length, 32, 'creates user pwhash salt')
     t.end()
   })
@@ -25,7 +25,7 @@ test('.openCert can open a valid cert into an obj', t => {
     t.strictEqual(cert.id.length, 64, 'cert generates an id')
     t.strictEqual(cert.profile.name, 'doug', 'cert contains nested id info')
     t.strictEqual(cert.lock.length, 64, 'cert contains the lock')
-    t.strictEqual(cert.imprint.length, 64, 'cert contains the imprint')
+    t.strictEqual(cert.thumbprint.length, 64, 'cert contains the thumbprint')
     t.assert(cert.expiration > Date.now(), 'cert expiration is in future')
     t.end()
   })
@@ -54,7 +54,7 @@ test('with an invalid sign pub key, openCert throws', t => {
   const pass = crypto.id(8)
   ident.createUser(pass, {name: 'finn'}, function (err, user) {
     if (err) throw err
-    user.imprint = fill(Buffer.alloc(32), 'xyz')
+    user.thumbprint = fill(Buffer.alloc(32), 'xyz')
     t.throws(() => ident.openCert(user))
     t.end()
   })
@@ -110,10 +110,10 @@ test('changePass', t => {
         crypto.hashPass(pass2, newSalt, function (err, pwhash2) {
           if (err) throw err
           const boxSk = crypto.decrypt(pwhash2.secret, user.key_locked, 'successfully opens the locked key using new pass hash')
-          const signSk = crypto.decrypt(pwhash2.secret, user.stamp_locked, 'successfully opens the locked stamp using new pass hash')
-          t.strictEqual(signSk.toString('hex'), user.stamp.toString('hex'))
+          const signSk = crypto.decrypt(pwhash2.secret, user.thumb_locked, 'successfully opens the locked thumb using new pass hash')
+          t.strictEqual(signSk.toString('hex'), user.thumb.toString('hex'))
           t.strictEqual(boxSk.toString('hex'), user.key.toString('hex'))
-          t.throws(() => crypto.decrypt(pwhash1.secret, user.stamp_locked), 'throws when trying to decrypt secret sign key with the old pass')
+          t.throws(() => crypto.decrypt(pwhash1.secret, user.thumb_locked), 'throws when trying to decrypt secret sign key with the old pass')
           t.throws(() => crypto.decrypt(pwhash1.secret, user.key_locked), 'throws when trying to decrypt secret box key with old pass')
           t.end()
         })
@@ -122,16 +122,13 @@ test('changePass', t => {
   })
 })
 
-test('.stampUser and .verifyStampedUser: one user can stamp another users cert', t => {
-  ident.createUser('xyz xyz xyz', {name: 'A'}, function (err, stamper) {
+test('.signUser and .verifySignedUser: one user can sign another users cert', t => {
+  ident.createUser('xyz xyz xyz', {name: 'A'}, function (err, signer) {
     if (err) throw err
-    ident.createUser('xyz xyz xyz', {name: 'B'}, function (err, stampee) {
+    ident.createUser('xyz xyz xyz', {name: 'B'}, function (err, signee) {
       if (err) throw err
-      const stampeeCert = ident.openCert(stampee)
-      t.deepEqual(stamper.stamped_users, {})
-      ident.stampUser(stamper, stampee)
-      t.assert(stamper.stamped_users[stampeeCert.id])
-      ident.verifyStampedUser(stamper, stampee)
+      const signedSigneeCert = ident.signUser(signer, signee)
+      ident.verifySignedUser(signer, signee, signedSigneeCert)
       t.end()
     })
   })

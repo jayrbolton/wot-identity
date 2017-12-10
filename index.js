@@ -18,7 +18,7 @@ ident.createUser = function createUser (pass, profile, callback) {
       profile: profile,
       id: id,
       lock: boxKeypair.pk,
-      imprint: signKeypair.pk
+      thumbprint: signKeypair.pk
     })
     const certSigned = crypto.sign(cert, signKeypair.sk)
     // Encrypt the signing secret key and save the cipher/nonce
@@ -27,24 +27,23 @@ ident.createUser = function createUser (pass, profile, callback) {
     const boxSkEncrypted = crypto.encrypt(pwhash.secret, boxKeypair.sk)
     const user = {
       id: id,
-      imprint: signKeypair.pk,
-      stamp: signKeypair.sk,
-      stamp_locked: signSkEncrypted,
+      thumbprint: signKeypair.pk,
+      thumb: signKeypair.sk,
+      thumb_locked: signSkEncrypted,
       lock: boxKeypair.pk,
       key: boxKeypair.sk,
       key_locked: boxSkEncrypted,
       cert: certSigned,
-      _salt: pwhash.salt,
-      stamped_users: {}
+      _salt: pwhash.salt
     }
     callback(null, user)
   })
 }
 
 ident.openCert = function openCert (user) {
-  assert(user.imprint && user.imprint.length, 'user needs an imprint')
+  assert(user.thumbprint && user.thumbprint.length, 'user needs an thumbprint')
   assert(user.cert && user.cert.length, 'user needs a cert')
-  const plain = crypto.openSigned(user.cert, user.imprint)
+  const plain = crypto.openSigned(user.cert, user.thumbprint)
   const cert = JSON.parse(plain)
   if (cert.expiration < Date.now()) throw new Error('User certification has expired')
   return cert
@@ -66,43 +65,40 @@ ident.modifyProfile = function modifyProfile (user, profile) {
 // resign the newcert and modify the user's cert and certSig props
 // Used in setExpiration and modifyIdentity
 function resetCert (user, prop, val) {
-  assert(user.stamp, user.stamp.length, 'user must have an unlocked stamp (user.stamp)')
+  assert(user.thumb, user.thumb.length, 'user must have a .thumb')
   const cert = ident.openCert(user)
   cert[prop] = val
-  user.cert = crypto.sign(JSON.stringify(cert), user.stamp)
+  user.cert = crypto.sign(JSON.stringify(cert), user.thumb)
   return user
 }
 
 // Change the user's password (re-encrypt their secret keys using a new pass hash)
 ident.changePass = function changePass (user, newPass, callback) {
-  assert(user.stamp && user.stamp.length, 'user must have an unlocked stamp (user.stamp)')
+  assert(user.thumb && user.thumb.length, 'user must have a .thumb')
   assert(newPass && typeof newPass === 'string' && newPass.length >= 7, 'passphrase must be a string with length at least 7')
   assert.strictEqual(typeof callback, 'function', 'pass in a callback function')
   crypto.hashPass(newPass, null, function (err, pwhash) {
     if (err) return callback(err)
     user._salt = pwhash.salt
-    user.stamp_locked = crypto.encrypt(pwhash.secret, user.stamp)
+    user.thumb_locked = crypto.encrypt(pwhash.secret, user.thumb)
     user.key_locked = crypto.encrypt(pwhash.secret, user.key)
     callback(null, user)
   })
 }
 
-// Have one user stamp another user's certification, to verify the identity is valid
-ident.stampUser = function stampUser (stamper, stampee) {
-  assert(stamper.stamp && stamper.stamp.length, 'the stamper user needs a .stamp')
-  const cert = ident.openCert(stampee)
-  const stamped = crypto.hashAndSign(stampee.cert, stamper.stamp)
-  stamper.stamped_users[cert.id] = stamped
-  return stamper
+// Have one user thumb another user's certification, to verify the identity is valid
+ident.signUser = function signUser (signer, signee) {
+  assert(signer.thumb && signer.thumb.length, 'the signer user needs a .thumb')
+  ident.openCert(signee) // open it just to verify it
+  return crypto.hashAndSign(signee.cert, signer.thumb)
 }
 
-// Given a user that has stamped another user's cert
+// Given a user that has signed another user's cert
 // and given the full certificate of the other user
-// Verify that the stamping is valid
-ident.verifyStampedUser = function verifyStampedUser (stamper, stampee) {
+// Verify that the signer is valid
+ident.verifySignedUser = function verifySignedUser (signer, signee, signedHash) {
   // .openCert will throw an error if the cert is invalid
-  const stampeeCert = ident.openCert(stampee)
-  const stampedHash = stamper.stamped_users[stampeeCert.id]
-  crypto.unhashAndVerify(stampedHash, stampee.cert, stamper.imprint)
-  return stampeeCert
+  const signeeCert = ident.openCert(signee)
+  crypto.unhashAndVerify(signedHash, signee.cert, signer.thumbprint)
+  return signeeCert
 }
